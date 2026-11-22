@@ -36,36 +36,6 @@ app.use(helmet({
 app.use(express.urlencoded({ extended: false, limit: "16kb" }));
 app.use(express.json({ limit: "1mb" }));
 
-const sessions = new Map();
-const SESSION_TTL = 12 * 60 * 60 * 1000;
-function safeEqual(a, b) {
-  const aa = Buffer.from(String(a));
-  const bb = Buffer.from(String(b));
-  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
-}
-function cookies(req) {
-  const out = {};
-  (req.headers.cookie || "").split(";").forEach(part => {
-    const i = part.indexOf("=");
-    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
-  });
-  return out;
-}
-function auth(req, res, next) {
-  const sid = cookies(req).sid;
-  const session = sid && sessions.get(sid);
-  if (!session || session.expires < Date.now()) {
-    if (sid) sessions.delete(sid);
-    return res.redirect("/login");
-  }
-  session.expires = Date.now() + SESSION_TTL;
-  req.sid = sid;
-  next();
-}
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, limit: 10,
-  standardHeaders: "draft-7", legacyHeaders: false
-});
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, limit: 120,
   standardHeaders: "draft-7", legacyHeaders: false
@@ -76,33 +46,13 @@ const upload = multer({
   limits: { files: 100 }
 });
 
-const LOGIN_PAGE = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تسجيل الدخول - مركز الملفات</title><style>*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Tahoma,sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);color:#f1f5f9;display:grid;place-items:center;padding:24px}.card{width:min(400px,92%);background:#1e293b;border:1px solid #334155;border-radius:16px;padding:36px 28px;box-shadow:0 20px 40px -10px rgba(0,0,0,0.4)}.brand{display:flex;align-items:center;gap:10px;margin-bottom:8px}.brand .dot{width:10px;height:10px;background:#22d3ee;border-radius:50%;box-shadow:0 0 12px #22d3ee}h1{font-size:20px;font-weight:700;margin-bottom:4px}p{color:#94a3b8;font-size:14px;margin-bottom:24px}.form{display:flex;flex-direction:column;gap:14px}input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#f1f5f9;font-size:14px}input:focus{outline:none;border-color:#3b82f6}button{width:100%;padding:12px;border-radius:10px;border:none;background:#3b82f6;color:white;font-size:15px;font-weight:700;cursor:pointer}button:hover{background:#2563eb}button:active{transform:translateY(1px)}.err{color:#f87171;font-size:13px;text-align:center;margin-top:8px}</style></head><body><div class="card"><div class="brand"><div class="dot"></div><div><div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px">مركز الملفات الخاص</div><div style="font-size:16px;font-weight:800">تسجيل الدخول</div></div></div><p>أدخل كلمة مرور الإدارة للدخول إلى لوحة الملفات.</p><form method="post" action="/login" class="form"><input type="password" name="password" placeholder="كلمة المرور" required autocomplete="current-password"><button type="submit">دخول</button></form><div id="err" class="err"></div></div><script>const params=new URLSearchParams(location.search);if(params.get("bad"))document.getElementById("err").textContent="كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.";</script></body></html>`;
-
-app.get("/login", (_req, res) => {
-  res.setHeader("Cache-Control", "no-store");
-  res.type("html").send(LOGIN_PAGE);
-});
-app.post("/login", loginLimiter, (req, res) => {
-  if (!safeEqual(req.body.password || "", config.adminPassword)) {
-    return res.redirect("/login?bad=1");
-  }
-  const sid = crypto.randomBytes(32).toString("hex");
-  sessions.set(sid, { expires: Date.now() + SESSION_TTL });
-  res.setHeader("Set-Cookie", `sid=${sid}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${SESSION_TTL / 1000}`);
-  res.redirect("/");
-});
-app.post("/logout", auth, (req, res) => {
-  sessions.delete(req.sid);
-  res.setHeader("Set-Cookie", "sid=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0");
-  res.redirect("/login");
-});
-app.get("/", auth, (_req, res) => {
+app.get("/", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
-app.use("/assets", auth, express.static(path.join(__dirname, "public", "assets"), { fallthrough: false }));
+app.use("/assets", express.static(path.join(__dirname, "public", "assets"), { fallthrough: false }));
 
-app.get("/api/status", auth, apiLimiter, async (_req, res) => {
+app.get("/api/status", apiLimiter, async (_req, res) => {
   try {
     const r = await pool.query("SELECT NOW() AS server_time");
     const count = await pool.query("SELECT count(*)::int AS files, COALESCE(sum(size_bytes),0)::bigint AS bytes FROM public.nahid_file_store");
@@ -112,7 +62,7 @@ app.get("/api/status", auth, apiLimiter, async (_req, res) => {
   }
 });
 
-app.post("/api/upload", auth, apiLimiter, upload.array("files", 100), async (req, res) => {
+app.post("/api/upload", apiLimiter, upload.array("files", 100), async (req, res) => {
   const files = req.files || [];
   if (!files.length) return res.status(400).json({ error: "لم يتم اختيار ملفات." });
   try {
@@ -145,7 +95,7 @@ app.post("/api/upload", auth, apiLimiter, upload.array("files", 100), async (req
   }
 });
 
-app.get("/api/files", auth, apiLimiter, async (_req, res) => {
+app.get("/api/files", apiLimiter, async (_req, res) => {
   try {
     const r = await pool.query(
       `SELECT id, original_name AS name, size_bytes AS size, created_at AS "uploadedAt"
@@ -156,7 +106,7 @@ app.get("/api/files", auth, apiLimiter, async (_req, res) => {
   } catch (e) { res.status(500).json({ error: "تعذر قراءة الملفات" }); }
 });
 
-app.get("/files/:id", auth, async (req, res) => {
+app.get("/files/:id", async (req, res) => {
   if (!/^[a-f0-9-]{36}$/i.test(req.params.id)) return res.status(404).send("File not found");
   try {
     const r = await pool.query("SELECT file_data, mime_type, original_name FROM public.nahid_file_store WHERE id=$1", [req.params.id]);
@@ -169,7 +119,7 @@ app.get("/files/:id", auth, async (req, res) => {
   } catch (e) { res.status(500).send("تعذر فتح الملف"); }
 });
 
-app.delete("/api/files/:id", auth, apiLimiter, async (req, res) => {
+app.delete("/api/files/:id", apiLimiter, async (req, res) => {
   if (!/^[a-f0-9-]{36}$/i.test(req.params.id)) return res.status(404).json({ error: "File not found" });
   try {
     const r = await pool.query("DELETE FROM public.nahid_file_store WHERE id=$1 RETURNING id", [req.params.id]);

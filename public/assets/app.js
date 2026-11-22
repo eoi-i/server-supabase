@@ -62,12 +62,6 @@ async function status() {
   if (!pill) return;
   try {
     const r = await fetch("/api/status");
-    if (r.status === 401) {
-      pill.textContent = "جلسة منتهية";
-      pill.className = "pill bad";
-      setTimeout(() => { location.href = "/login"; }, 1200);
-      return;
-    }
     const d = await r.json();
     if (d.ok && d.database && d.database.connected) {
       pill.textContent = "قاعدة البيانات متصلة";
@@ -88,10 +82,6 @@ async function list() {
   const statSize = $("stat-size");
   try {
     const r = await fetch("/api/files");
-    if (r.status === 401) {
-      setTimeout(() => { location.href = "/login"; }, 1200);
-      return;
-    }
     const fs = await r.json();
     if (container) container.innerHTML = "";
 
