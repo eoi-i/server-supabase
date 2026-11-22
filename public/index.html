@@ -6,176 +6,184 @@
 <title>مركز الملفات الخاص</title>
 <style>
 :root{
-  --bg:#0f172a;
-  --card:#1e293b;
-  --card-hover:#253040;
-  --border:#334155;
-  --text:#f1f5f9;
+  --bg:#0b1021;
+  --card:#141b2d;
+  --card-hover:#1c2640;
+  --border:#2a3554;
+  --text:#e8eaf2;
   --muted:#94a3b8;
-  --primary:#3b82f6;
-  --primary-hover:#2563eb;
-  --success:#10b981;
+  --primary:#6366f1;
+  --primary-hover:#4f46e5;
+  --primary-glow:rgba(99,102,241,0.35);
+  --success:#22c55e;
   --danger:#ef4444;
-  --danger-hover:#dc2626;
-  --shadow:0 10px 30px -10px rgba(0,0,0,0.5);
+  --shadow:0 20px 40px -10px rgba(0,0,0,0.45);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 body {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Tahoma, "Noto Naskh Arabic", sans-serif;
-  background: var(--bg);
+  background: radial-gradient(1200px 600px at 10% -10%, #1e1b4b, #0b1021 55%), #0b1021;
+  background-attachment: fixed;
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
 }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
-button {
-  font: inherit;
-  cursor: pointer;
-  border: none;
-  border-radius: 10px;
-  transition: all 0.2s ease;
-}
+button { font: inherit; cursor: pointer; border: none; border-radius: 12px; transition: all 0.2s ease; }
 
 /* Layout */
-.wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 28px 20px 60px; }
 
 /* Navbar */
 .navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 0;
+  gap: 14px;
+  padding: 20px 0 10px;
   flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
+  margin-bottom: 26px;
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 .brand .dot {
   width: 10px; height: 10px;
   background: #22d3ee;
   border-radius: 50%;
-  box-shadow: 0 0 14px #22d3ee;
+  box-shadow: 0 0 16px #22d3ee;
 }
-.brand-text .app { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-.brand-text .name { font-size: 18px; font-weight: 800; }
+.brand-text .app { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }
+.brand-text .name { font-size: 19px; font-weight: 800; background: linear-gradient(90deg,#fff,#a5b4fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .nav-actions { display: flex; gap: 10px; align-items: center; }
+#status-pill {
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pill.ok { background: #064e3b; color: #86efac; border-color: #047857; }
+.pill.bad { background: #450a0a; color: #fca5a5; border-color: #7f1d1d; }
+.pill.warn { background: #451a03; color: #fcd34d; border-color: #b45309; }
+
+/* Buttons */
 .btn {
-  padding: 10px 16px;
-  border-radius: 10px;
+  padding: 10px 18px;
+  border-radius: 12px;
   font-weight: 700;
   font-size: 14px;
-}
-.btn-primary { background: var(--primary); color: #061b18; }
-.btn-primary:hover { background: var(--primary-hover); }
-.btn-secondary { background: var(--card-hover); color: var(--text); border: 1px solid var(--border); }
-.btn-secondary:hover { background: #334155; }
-.btn-danger { background: var(--danger); color: white; }
-.btn-danger:hover { background: var(--danger-hover); }
-.btn-sm { padding: 7px 12px; font-size: 13px; }
-
-/* Cards / Panels */
-.panel {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-shadow: var(--shadow);
-}
-.panel h2 {
-  font-size: 17px;
-  font-weight: 800;
-  margin-bottom: 16px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
-.section-title { font-size: 16px; font-weight: 800; margin-bottom: 12px; }
+.btn-primary { background: var(--primary); color: white; box-shadow: 0 0 18px var(--primary-glow); }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 0 24px var(--primary-glow); }
+.btn-secondary { background: var(--card-hover); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: #2a3554; border-color: #475569; }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
 
-/* Stats grid */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 26px; }
 .stat {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: 18px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
 }
-.stat .label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-.stat .value { font-size: 24px; font-weight: 800; }
+.stat::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--primary), #a855f7);
+}
+.stat .label { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.stat .value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
 .stat .value .unit { font-size: 14px; font-weight: 500; color: var(--muted); }
 
-/* Status pills */
-.status-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
-.pill {
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
+/* Panels */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
 }
-.pill.ok { background: #064e3b; color: #86efac; border: 1px solid #047857; }
-.pill.bad { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
-.pill.warn { background: #451a03; color: #fcd34d; border: 1px solid #b45309; }
+.panel h2 {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
 
 /* Upload area */
 .upload-zone {
   border: 2px dashed var(--border);
-  border-radius: 14px;
-  padding: 32px 20px;
+  border-radius: 20px;
+  padding: 36px 24px;
   text-align: center;
-  transition: all 0.2s ease;
-  background: #0f172a;
+  transition: all 0.25s ease;
+  background: #0f1526;
 }
-.upload-zone.dragover { border-color: var(--primary); background: #16253a; }
-.upload-zone p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
-.file-input { display: none; }
+.upload-zone.dragover { border-color: var(--primary); background: #161d36; box-shadow: 0 0 24px var(--primary-glow); }
+.upload-zone p { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+.file-input { display: none !important; }
 .filelabel {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   background: var(--primary);
-  color: #061b18;
-  padding: 11px 18px;
-  border-radius: 10px;
+  color: white;
+  padding: 12px 22px;
+  border-radius: 12px;
   font-weight: 700;
   font-size: 14px;
-  margin-bottom: 12px;
+  margin: 0 6px 14px;
+  box-shadow: 0 0 16px var(--primary-glow);
 }
-.filelabel:hover { background: var(--primary-hover); }
-.filelabel.secondary { background: var(--card-hover); color: var(--text); border: 1px solid var(--border); }
-.filelabel.secondary:hover { background: #334155; }
-#selection { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
-#message { margin-top: 12px; font-size: 14px; font-weight: 600; min-height: 20px; }
+.filelabel:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.filelabel.secondary { background: var(--card-hover); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
+.filelabel.secondary:hover { background: #2a3554; border-color: #475569; }
+#selection { color: var(--muted); font-size: 13px; margin-bottom: 16px; min-height: 20px; }
+#message { margin-top: 14px; font-size: 14px; font-weight: 600; min-height: 22px; }
 .msg-ok { color: #86efac; }
 .msg-err { color: #f87171; }
 
-/* Files table */
-.files-list { display: flex; flex-direction: column; gap: 10px; }
+/* Files list */
+.files-list { display: flex; flex-direction: column; gap: 12px; }
 .file-row {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px;
-  background: #0f172a;
+  padding: 16px;
+  background: #0f1526;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  transition: all 0.2s ease;
+  border-radius: 16px;
+  transition: all 0.25s ease;
 }
-.file-row:hover { border-color: var(--primary); background: #16253a; }
+.file-row:hover { border-color: var(--primary); background: #161d36; transform: translateY(-1px); box-shadow: 0 8px 20px -6px rgba(0,0,0,0.3); }
 .file-icon {
-  width: 44px; height: 44px;
-  border-radius: 10px;
-  background: #1e293b;
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  background: var(--card-hover);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: 24px;
   flex-shrink: 0;
   border: 1px solid var(--border);
 }
@@ -184,43 +192,45 @@ button {
   font-weight: 700;
   font-size: 15px;
   overflow-wrap: break-word;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  color: var(--text);
 }
-.file-meta { font-size: 12px; color: var(--muted); }
+.file-meta { font-size: 12px; color: var(--muted); display: flex; gap: 10px; align-items: center; }
 .file-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 .btn-icon {
-  width: 34px; height: 34px;
-  border-radius: 8px;
+  width: 38px; height: 38px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 17px;
   color: var(--text);
   background: var(--card-hover);
   border: 1px solid var(--border);
 }
-.btn-icon:hover { background: var(--primary); color: #061b18; }
-.btn-icon.danger:hover { background: var(--danger); color: white; }
+.btn-icon:hover { background: var(--primary); color: white; border-color: var(--primary); }
+.btn-icon.danger:hover { background: var(--danger); color: white; border-color: var(--danger); }
 
 /* Empty state */
-.empty { text-align: center; padding: 40px 20px; color: var(--muted); }
-.empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+.empty { text-align: center; padding: 50px 20px; color: var(--muted); }
+.empty .icon { font-size: 56px; margin-bottom: 14px; opacity: 0.5; display: block; }
 
 /* Toast */
 #toast {
   position: fixed;
-  top: 20px;
+  top: 24px;
   left: 50%;
-  transform: translateX(-50%) translateY(-100px);
-  padding: 12px 20px;
-  border-radius: 10px;
+  transform: translateX(-50%) translateY(-120px);
+  padding: 14px 24px;
+  border-radius: 12px;
   color: white;
   font-weight: 700;
   font-size: 14px;
   opacity: 0;
-  transition: all 0.3s ease;
+  transition: all 0.35s ease;
   z-index: 1000;
   pointer-events: none;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.4);
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 #toast.ok { background: var(--success); }
@@ -228,11 +238,12 @@ button {
 
 /* Responsive */
 @media (max-width: 640px) {
-  .wrap { padding: 16px; }
-  .navbar { flex-direction: column; align-items: stretch; gap: 12px; }
+  .wrap { padding: 18px 16px 50px; }
+  .navbar { flex-direction: column; align-items: stretch; gap: 14px; }
   .nav-actions { justify-content: space-between; width: 100%; }
-  .file-row { flex-direction: column; align-items: stretch; gap: 12px; }
+  .file-row { flex-direction: column; align-items: stretch; gap: 14px; }
   .file-actions { justify-content: flex-end; width: 100%; }
+  .filelabel { width: 100%; justify-content: center; margin: 0 0 10px; }
 }
 </style>
 </head>
@@ -243,12 +254,12 @@ button {
       <div class="dot"></div>
       <div class="brand-text">
         <div class="app">مركز الملفات الخاص</div>
-        <div class="name">ملفاتك بأمان في PostgreSQL</div>
+        <div class="name">ملفاتك بأمان في قاعدة البيانات</div>
       </div>
     </div>
     <div class="nav-actions">
-      <div id="status-pill" class="pill warn">جارٍ الفحص…</div>
-      <form method="post" action="/logout" style="margin:0"><button class="btn btn-secondary" type="submit">تسجيل الخروج</button></form>
+      <div id="status-pill" class="pill warn">جارٍ التحقق…</div>
+      <form method="post" action="/logout" style="margin:0"><button class="btn btn-secondary btn-sm" type="submit">تسجيل الخروج</button></form>
     </div>
   </nav>
 
@@ -267,8 +278,8 @@ button {
     <h2>📤 رفع الملفات</h2>
     <div class="upload-zone" id="upload-zone">
       <p>اسحب الملفات هنا أو انقر لتحديدها</p>
-      <label class="filelabel" for="file-input">اختيار ملفات</label>
-      <label class="filelabel secondary" for="folder-input">اختيار مجلد</label>
+      <label class="filelabel" for="file-input">📁 اختيار ملفات</label>
+      <label class="filelabel secondary" for="folder-input">📂 اختيار مجلد</label>
       <input id="file-input" type="file" multiple class="file-input">
       <input id="folder-input" type="file" multiple webkitdirectory directory class="file-input">
       <p id="selection">لم يتم اختيار ملفات.</p>
@@ -278,12 +289,12 @@ button {
   </section>
 
   <section class="panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px">
       <h2>📁 الملفات المرفوعة</h2>
-      <button class="btn btn-secondary btn-sm" id="btn-refresh">تحديث القائمة</button>
+      <button class="btn btn-secondary btn-sm" id="btn-refresh">🔄 تحديث القائمة</button>
     </div>
     <div id="files-list" class="files-list">
-      <div class="empty"><div class="icon">📭</div><div>لا توجد ملفات مرفوعة بعد.</div></div>
+      <div class="empty"><span class="icon">📭</span><div>لا توجد ملفات مرفوعة بعد.</div></div>
     </div>
   </section>
 </div>

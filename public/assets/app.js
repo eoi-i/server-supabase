@@ -2,22 +2,27 @@ const $ = id => document.getElementById(id);
 let selected = [];
 
 function choose(files) {
-  selected = Array.from(files || []);
+  selected = Array.from(files || []).filter(f => f && f.size !== undefined);
   const n = selected.length;
-  $("selection").textContent = n ? `تم اختيار ${n} ملف${n > 1 ? "ات" : ""}` : "لم يتم اختيار ملفات.";
+  const el = $("selection");
+  if (el) el.textContent = n ? `تم اختيار ${n} ملف${n > 1 ? "ات" : ""}` : "لم يتم اختيار ملفات.";
 }
 
-$("file-input").onchange = e => choose(e.target.files);
-$("folder-input").onchange = e => choose(e.target.files);
+const fileInput = $("file-input");
+const folderInput = $("folder-input");
+if (fileInput) fileInput.onchange = e => choose(e.target.files);
+if (folderInput) folderInput.onchange = e => choose(e.target.files);
 
 // Drag & drop
 const zone = $("upload-zone");
-["dragenter","dragover"].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.add("dragover"); }));
-["dragleave","drop"].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.remove("dragover"); }));
-zone.addEventListener("drop", e => {
-  const dt = e.dataTransfer;
-  if (dt && dt.files.length) choose(dt.files);
-});
+if (zone) {
+  ["dragenter","dragover"].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.add("dragover"); }));
+  ["dragleave","drop"].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.remove("dragover"); }));
+  zone.addEventListener("drop", e => {
+    const dt = e.dataTransfer;
+    if (dt && dt.files.length) choose(dt.files);
+  });
+}
 
 function iconFor(name) {
   const ext = name.split(".").pop().toLowerCase();
@@ -36,7 +41,7 @@ function iconFor(name) {
 }
 
 function formatSize(bytes) {
-  if (!bytes && bytes !== 0) return "—";
+  if (bytes == null || bytes === undefined) return "—";
   const k = 1024;
   const sizes = ["بايت", "كيلوبايت", "ميجابايت", "جيجابايت"];
   let i = 0, n = Number(bytes);
@@ -46,17 +51,25 @@ function formatSize(bytes) {
 
 function showToast(msg, type = "ok") {
   const t = $("toast");
+  if (!t) return;
   t.textContent = msg;
   t.className = type === "err" ? "show err" : "show ok";
   setTimeout(() => t.classList.remove("show"), 2500);
 }
 
 async function status() {
+  const pill = $("status-pill");
+  if (!pill) return;
   try {
     const r = await fetch("/api/status");
+    if (r.status === 401) {
+      pill.textContent = "جلسة منتهية";
+      pill.className = "pill bad";
+      setTimeout(() => { location.href = "/login"; }, 1200);
+      return;
+    }
     const d = await r.json();
-    const pill = $("status-pill");
-    if (d.ok && d.database.connected) {
+    if (d.ok && d.database && d.database.connected) {
       pill.textContent = "قاعدة البيانات متصلة";
       pill.className = "pill ok";
     } else {
@@ -64,28 +77,35 @@ async function status() {
       pill.className = "pill bad";
     }
   } catch (e) {
-    $("status-pill").textContent = "تعذر الاتصال بالخادم";
-    $("status-pill").className = "pill bad";
+    pill.textContent = "تعذر الاتصال بالخادم";
+    pill.className = "pill bad";
   }
 }
 
 async function list() {
+  const container = $("files-list");
+  const statFiles = $("stat-files");
+  const statSize = $("stat-size");
   try {
     const r = await fetch("/api/files");
+    if (r.status === 401) {
+      setTimeout(() => { location.href = "/login"; }, 1200);
+      return;
+    }
     const fs = await r.json();
-    const container = $("files-list");
-    container.innerHTML = "";
+    if (container) container.innerHTML = "";
 
     if (!fs || !fs.length) {
-      container.innerHTML = `<div class="empty"><div class="icon">📭</div><div>لا توجد ملفات مرفوعة بعد.</div></div>`;
+      if (container) container.innerHTML = `<div class="empty"><span class="icon">📭</span><div>لا توجد ملفات مرفوعة بعد.</div></div>`;
+      if (statFiles) statFiles.textContent = "0";
+      if (statSize) statSize.innerHTML = "0 <span class='unit'>بايت</span>";
       return;
     }
 
-    // إحصائيات
     let totalSize = 0;
     fs.forEach(f => totalSize += Number(f.size || 0));
-    $("stat-files").textContent = fs.length;
-    $("stat-size").textContent = formatSize(totalSize);
+    if (statFiles) statFiles.textContent = fs.length;
+    if (statSize) statSize.innerHTML = formatSize(totalSize);
 
     fs.forEach(f => {
       const row = document.createElement("div");
@@ -102,7 +122,7 @@ async function list() {
       name.textContent = f.name;
       const meta = document.createElement("div");
       meta.className = "file-meta";
-      meta.textContent = `${formatSize(f.size)} · ${new Date(f.uploadedAt).toLocaleString("ar-SA")}`;
+      meta.textContent = `${formatSize(f.size)}  ·  ${new Date(f.uploadedAt || f.created_at).toLocaleString("ar-SA")}`;
       info.append(name, meta);
 
       const actions = document.createElement("div");
@@ -141,39 +161,50 @@ async function list() {
 
       actions.append(open, copy, del);
       row.append(icon, info, actions);
-      container.append(row);
+      if (container) container.append(row);
     });
   } catch (e) {
-    $("files-list").innerHTML = `<div class="empty"><div class="icon">⚠️</div><div>تعذر تحميل القائمة.</div></div>`;
+    if (container) container.innerHTML = `<div class="empty"><span class="icon">⚠️</span><div>تعذر تحميل القائمة.</div></div>`;
   }
 }
 
-$("btn-upload").onclick = async () => {
-  if (!selected.length) { showToast("اختر ملفات أولاً", "err"); return; }
-  const form = new FormData();
-  selected.forEach(f => form.append("files", f));
-  $("message").textContent = "جارٍ الرفع…";
-  $("message").className = "";
-  try {
-    const r = await fetch("/api/upload", { method: "POST", body: form });
-    const d = await r.json();
-    if (!r.ok) { $("message").textContent = d.error || "فشل الرفع"; $("message").className = "msg-err"; showToast(d.error || "فشل الرفع", "err"); return; }
-    $("message").textContent = `تم رفع ${d.uploaded} ملف بنجاح.`;
-    $("message").className = "msg-ok";
-    showToast(`تم رفع ${d.uploaded} ملف`);
-    choose([]);
-    $("file-input").value = "";
-    $("folder-input").value = "";
-    list();
-    status();
-  } catch (e) {
-    $("message").textContent = "خطأ في الشبكة";
-    $("message").className = "msg-err";
-    showToast("خطأ في الشبكة", "err");
-  }
-};
+const btnUpload = $("btn-upload");
+const message = $("message");
+if (btnUpload) {
+  btnUpload.onclick = async () => {
+    if (!selected.length) { showToast("اختر ملفات أولاً", "err"); return; }
+    const form = new FormData();
+    selected.forEach(f => form.append("files", f));
+    if (message) { message.textContent = "جارٍ الرفع…"; message.className = ""; }
+    btnUpload.disabled = true;
+    btnUpload.textContent = "جارٍ الرفع…";
+    try {
+      const r = await fetch("/api/upload", { method: "POST", body: form });
+      const d = await r.json();
+      if (!r.ok) {
+        if (message) { message.textContent = d.error || "فشل الرفع"; message.className = "msg-err"; }
+        showToast(d.error || "فشل الرفع", "err");
+        return;
+      }
+      if (message) { message.textContent = `تم رفع ${d.uploaded} ملف بنجاح.`; message.className = "msg-ok"; }
+      showToast(`تم رفع ${d.uploaded} ملف`);
+      choose([]);
+      if (fileInput) fileInput.value = "";
+      if (folderInput) folderInput.value = "";
+      list();
+      status();
+    } catch (e) {
+      if (message) { message.textContent = "خطأ في الشبكة"; message.className = "msg-err"; }
+      showToast("خطأ في الشبكة", "err");
+    } finally {
+      btnUpload.disabled = false;
+      btnUpload.textContent = "رفع الملفات المحددة";
+    }
+  };
+}
 
-$("btn-refresh").onclick = () => { list(); status(); };
+const btnRefresh = $("btn-refresh");
+if (btnRefresh) btnRefresh.onclick = () => { list(); status(); };
 
 status().catch(() => {});
 list().catch(() => {});
