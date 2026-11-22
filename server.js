@@ -28,6 +28,9 @@ const pool = new Pool({
   max: 5
 });
 
+console.log("Config loaded: databaseUrl from env =", Boolean(config.databaseUrl && !config.databaseUrl.includes("SET_NEW_DATABASE")),
+  "| adminPassword set =", Boolean(config.adminPassword && !config.adminPassword.includes("SET_A_NEW_")));
+
 app.set("trust proxy", 1);
 app.use(helmet({
   contentSecurityPolicy: {
