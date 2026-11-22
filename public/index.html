@@ -1,10 +1,295 @@
 <!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مركز الملفات الخاص</title>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مركز الملفات الخاص</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0e171e;color:#edf4f6;font:15px system-ui}.wrap{max-width:980px;margin:auto;padding:22px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.muted{color:#9fb0b9}.panel{background:#172630;border:1px solid #304651;border-radius:16px;padding:18px;margin:18px 0}.status,.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.pill{padding:6px 11px;border-radius:999px;background:#263d47}.ok{background:#123e35;color:#8ce0c8}.bad{background:#482628;color:#ffb8b8}button,.filelabel{background:#159b86;color:#061b18;border:0;border-radius:10px;padding:11px 15px;font:inherit;font-weight:700;cursor:pointer}button.secondary{background:#304651;color:#edf4f6}button.danger{background:#7d3338;color:white}input[type=file]{display:none}.small{font-size:12px;color:#9fb0b9}.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #2b3e48}.row:last-child{border:0}.name{overflow-wrap:anywhere}a{color:#73d8c5}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0d171d;padding:12px;border-radius:10px;color:#c6d7dd}
-</style></head><body><main class="wrap">
-<div class="top"><div><h1>مركز الملفات الخاص</h1><div class="muted">تخزين الملفات مباشرة داخل PostgreSQL</div></div><form method="post" action="/logout"><button class="secondary">تسجيل الخروج</button></form></div>
-<section class="panel"><h2>حالة الخادم وقاعدة البيانات</h2><div class="status"><span id="app" class="pill">جارٍ الفحص…</span><span id="db" class="pill">PostgreSQL</span></div><pre id="details">...</pre><button class="secondary" id="refresh">إعادة الفحص</button></section>
-<section class="panel"><h2>رفع ملفات أو مجلدات</h2><p class="muted">تُخزن الملفات مباشرة داخل جدول PostgreSQL nahid_file_store كبيانات ثنائية. يظهر لكل ملف رابط مباشر في القائمة يفتح الملف فوراً. الحد الأقصى 20 ميغابايت لكل ملف و100 ملف في العملية.</p><div class="actions"><label class="filelabel" for="files">اختيار ملفات</label><label class="filelabel" for="folder">اختيار مجلد</label><input id="files" type="file" multiple><input id="folder" type="file" multiple webkitdirectory directory></div><p id="selection" class="small">لم يتم اختيار ملفات.</p><button id="upload">رفع المحدد</button><p id="message" class="muted"></p></section>
-<section class="panel"><div class="top"><h2>الملفات المرفوعة</h2><button class="secondary" id="reload">تحديث القائمة</button></div><div id="list" class="muted">جارٍ التحميل…</div></section>
-</main><script src="/assets/app.js"></script></body></html>
+:root{
+  --bg:#0f172a;
+  --card:#1e293b;
+  --card-hover:#253040;
+  --border:#334155;
+  --text:#f1f5f9;
+  --muted:#94a3b8;
+  --primary:#3b82f6;
+  --primary-hover:#2563eb;
+  --success:#10b981;
+  --danger:#ef4444;
+  --danger-hover:#dc2626;
+  --shadow:0 10px 30px -10px rgba(0,0,0,0.5);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Tahoma, "Noto Naskh Arabic", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+/* Layout */
+.wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+/* Navbar */
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand .dot {
+  width: 10px; height: 10px;
+  background: #22d3ee;
+  border-radius: 50%;
+  box-shadow: 0 0 14px #22d3ee;
+}
+.brand-text .app { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.brand-text .name { font-size: 18px; font-weight: 800; }
+.nav-actions { display: flex; gap: 10px; align-items: center; }
+.btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.btn-primary { background: var(--primary); color: #061b18; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-secondary { background: var(--card-hover); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: #334155; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover { background: var(--danger-hover); }
+.btn-sm { padding: 7px 12px; font-size: 13px; }
+
+/* Cards / Panels */
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+}
+.panel h2 {
+  font-size: 17px;
+  font-weight: 800;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title { font-size: 16px; font-weight: 800; margin-bottom: 12px; }
+
+/* Stats grid */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+.stat .label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.stat .value { font-size: 24px; font-weight: 800; }
+.stat .value .unit { font-size: 14px; font-weight: 500; color: var(--muted); }
+
+/* Status pills */
+.status-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.pill.ok { background: #064e3b; color: #86efac; border: 1px solid #047857; }
+.pill.bad { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+.pill.warn { background: #451a03; color: #fcd34d; border: 1px solid #b45309; }
+
+/* Upload area */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  padding: 32px 20px;
+  text-align: center;
+  transition: all 0.2s ease;
+  background: #0f172a;
+}
+.upload-zone.dragover { border-color: var(--primary); background: #16253a; }
+.upload-zone p { color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+.file-input { display: none; }
+.filelabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--primary);
+  color: #061b18;
+  padding: 11px 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.filelabel:hover { background: var(--primary-hover); }
+.filelabel.secondary { background: var(--card-hover); color: var(--text); border: 1px solid var(--border); }
+.filelabel.secondary:hover { background: #334155; }
+#selection { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+#message { margin-top: 12px; font-size: 14px; font-weight: 600; min-height: 20px; }
+.msg-ok { color: #86efac; }
+.msg-err { color: #f87171; }
+
+/* Files table */
+.files-list { display: flex; flex-direction: column; gap: 10px; }
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: #0f172a;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+.file-row:hover { border-color: var(--primary); background: #16253a; }
+.file-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  background: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+.file-info { flex: 1; min-width: 0; }
+.file-name {
+  font-weight: 700;
+  font-size: 15px;
+  overflow-wrap: break-word;
+  margin-bottom: 4px;
+}
+.file-meta { font-size: 12px; color: var(--muted); }
+.file-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.btn-icon {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--card-hover);
+  border: 1px solid var(--border);
+}
+.btn-icon:hover { background: var(--primary); color: #061b18; }
+.btn-icon.danger:hover { background: var(--danger); color: white; }
+
+/* Empty state */
+.empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+.empty .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+
+/* Toast */
+#toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100px);
+  padding: 12px 20px;
+  border-radius: 10px;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.ok { background: var(--success); }
+#toast.err { background: var(--danger); }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .wrap { padding: 16px; }
+  .navbar { flex-direction: column; align-items: stretch; gap: 12px; }
+  .nav-actions { justify-content: space-between; width: 100%; }
+  .file-row { flex-direction: column; align-items: stretch; gap: 12px; }
+  .file-actions { justify-content: flex-end; width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="navbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="brand-text">
+        <div class="app">مركز الملفات الخاص</div>
+        <div class="name">ملفاتك بأمان في PostgreSQL</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div id="status-pill" class="pill warn">جارٍ الفحص…</div>
+      <form method="post" action="/logout" style="margin:0"><button class="btn btn-secondary" type="submit">تسجيل الخروج</button></form>
+    </div>
+  </nav>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="label">عدد الملفات</div>
+      <div class="value" id="stat-files">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">الحجم الكلي</div>
+      <div class="value" id="stat-size">0 <span class="unit">بايت</span></div>
+    </div>
+  </div>
+
+  <section class="panel">
+    <h2>📤 رفع الملفات</h2>
+    <div class="upload-zone" id="upload-zone">
+      <p>اسحب الملفات هنا أو انقر لتحديدها</p>
+      <label class="filelabel" for="file-input">اختيار ملفات</label>
+      <label class="filelabel secondary" for="folder-input">اختيار مجلد</label>
+      <input id="file-input" type="file" multiple class="file-input">
+      <input id="folder-input" type="file" multiple webkitdirectory directory class="file-input">
+      <p id="selection">لم يتم اختيار ملفات.</p>
+      <button class="btn btn-primary" id="btn-upload">رفع الملفات المحددة</button>
+      <p id="message"></p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <h2>📁 الملفات المرفوعة</h2>
+      <button class="btn btn-secondary btn-sm" id="btn-refresh">تحديث القائمة</button>
+    </div>
+    <div id="files-list" class="files-list">
+      <div class="empty"><div class="icon">📭</div><div>لا توجد ملفات مرفوعة بعد.</div></div>
+    </div>
+  </section>
+</div>
+
+<div id="toast"></div>
+
+<script src="/assets/app.js"></script>
+</body>
+</html>

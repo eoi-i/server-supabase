@@ -9,10 +9,6 @@ const config = require("./config");
 
 const app = express();
 const PORT = Number(process.env.PORT || config.port || 8080);
-const MAX_FILE_SIZE = Number(config.maxFileSizeMb || 20) * 1024 * 1024;
-
-let dbReady = false;
-let dbError = null;
 
 const pool = new Pool({
   connectionString: config.databaseUrl,
@@ -22,24 +18,17 @@ const pool = new Pool({
   max: 5
 });
 
-console.log("Config loaded: databaseUrl from env =", Boolean(config.databaseUrl && !config.databaseUrl.includes("SET_NEW_DATABASE")),
-  "| adminPassword set =", Boolean(config.adminPassword && !config.adminPassword.includes("SET_A_NEW_")));
-
-if (!config.adminPassword || config.adminPassword.length < 16 ||
-    config.adminPassword.includes("SET_A_NEW_")) {
-  console.error("Set a unique adminPassword of at least 16 characters.");
-}
-if (!config.databaseUrl || config.databaseUrl.includes("SET_NEW_DATABASE_PASSWORD_HERE")) {
-  console.error("Set databaseUrl.");
-}
-
 app.set("trust proxy", 1);
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"], imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'"], objectSrc: ["'none'"], frameAncestors: ["'none'"]
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"]
     }
   },
   crossOriginResourcePolicy: { policy: "same-origin" }
@@ -81,18 +70,21 @@ const apiLimiter = rateLimit({
   windowMs: 60 * 1000, limit: 120,
   standardHeaders: "draft-7", legacyHeaders: false
 });
+// لا يوجد حد أقصى لحجم الملف
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_FILE_SIZE, files: 100 }
+  limits: { files: 100 }
 });
+
+const LOGIN_PAGE = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>تسجيل الدخول - مركز الملفات</title><style>*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Tahoma,sans-serif;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);color:#f1f5f9;display:grid;place-items:center;padding:24px}.card{width:min(400px,92%);background:#1e293b;border:1px solid #334155;border-radius:16px;padding:36px 28px;box-shadow:0 20px 40px -10px rgba(0,0,0,0.4)}.brand{display:flex;align-items:center;gap:10px;margin-bottom:8px}.brand .dot{width:10px;height:10px;background:#22d3ee;border-radius:50%;box-shadow:0 0 12px #22d3ee}h1{font-size:20px;font-weight:700;margin-bottom:4px}p{color:#94a3b8;font-size:14px;margin-bottom:24px}.form{display:flex;flex-direction:column;gap:14px}input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#f1f5f9;font-size:14px}input:focus{outline:none;border-color:#3b82f6}button{width:100%;padding:12px;border-radius:10px;border:none;background:#3b82f6;color:white;font-size:15px;font-weight:700;cursor:pointer}button:hover{background:#2563eb}button:active{transform:translateY(1px)}.err{color:#f87171;font-size:13px;text-align:center;margin-top:8px}</style></head><body><div class="card"><div class="brand"><div class="dot"></div><div><div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px">مركز الملفات الخاص</div><div style="font-size:16px;font-weight:800">تسجيل الدخول</div></div></div><p>أدخل كلمة مرور الإدارة للدخول إلى لوحة الملفات.</p><form method="post" action="/login" class="form"><input type="password" name="password" placeholder="كلمة المرور" required autocomplete="current-password"><button type="submit">دخول</button></form><div id="err" class="err"></div></div><script>const params=new URLSearchParams(location.search);if(params.get("bad"))document.getElementById("err").textContent="كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.";</script></body></html>`;
 
 app.get("/login", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.type("html").send(`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>دخول الإدارة</title><style>*{box-sizing:border-box}body{margin:0;background:#101820;color:#eef4f7;font:16px system-ui;display:grid;min-height:100vh;place-items:center;padding:20px}.card{width:min(420px,100%);background:#192833;border:1px solid #304653;border-radius:18px;padding:28px}h1{font-size:23px}p{color:#b7c6ce;line-height:1.7}input,button{width:100%;padding:14px;border-radius:10px;font:inherit}input{background:#0f1a21;border:1px solid #405663;color:white;margin:12px 0}button{background:#19a68f;border:0;color:#061b18;font-weight:700}</style><main class="card"><h1>مركز الملفات الخاص</h1><p>هذه الصفحة محمية بكلمة مرور الإدارة.</p><form method="post" action="/login"><input type="password" name="password" placeholder="كلمة المرور" required autocomplete="current-password"><button>دخول</button></form></main></html>`);
+  res.type("html").send(LOGIN_PAGE);
 });
 app.post("/login", loginLimiter, (req, res) => {
   if (!safeEqual(req.body.password || "", config.adminPassword)) {
-    return res.status(401).type("html").send("كلمة المرور غير صحيحة. <a href='/login'>إعادة المحاولة</a>");
+    return res.redirect("/login?bad=1");
   }
   const sid = crypto.randomBytes(32).toString("hex");
   sessions.set(sid, { expires: Date.now() + SESSION_TTL });
@@ -112,21 +104,22 @@ app.use("/assets", auth, express.static(path.join(__dirname, "public", "assets")
 
 app.get("/api/status", auth, apiLimiter, async (_req, res) => {
   try {
-    const r = await pool.query("SELECT NOW() AS server_time, current_database() AS database, current_user AS username");
+    const r = await pool.query("SELECT NOW() AS server_time");
     const count = await pool.query("SELECT count(*)::int AS files, COALESCE(sum(size_bytes),0)::bigint AS bytes FROM public.nahid_file_store");
-    dbReady = true;
-    res.json({ app: "online", database: { connected: true, ...r.rows[0] }, storage: count.rows[0] });
+    res.json({ ok: true, database: { connected: true, time: r.rows[0].server_time }, storage: count.rows[0] });
   } catch (e) {
-    dbReady = false;
-    dbError = e.message;
-    res.status(503).json({ app: "online", database: { connected: false, error: e.message } });
+    res.status(503).json({ ok: false, database: { connected: false, error: e.message } });
   }
 });
 
 app.post("/api/upload", auth, apiLimiter, upload.array("files", 100), async (req, res) => {
   const files = req.files || [];
   if (!files.length) return res.status(400).json({ error: "لم يتم اختيار ملفات." });
-  if (!dbReady) return res.status(503).json({ error: "قاعدة البيانات غير متصلة" });
+  try {
+    const r = await pool.query("SELECT 1 FROM public.nahid_file_store LIMIT 1");
+  } catch (e) {
+    return res.status(503).json({ error: "قاعدة البيانات غير متصلة" });
+  }
   const client = await pool.connect();
   const added = [];
   try {
@@ -186,7 +179,7 @@ app.delete("/api/files/:id", auth, apiLimiter, async (req, res) => {
 });
 
 app.get("/health", (_req, res) => {
-  res.json({ status: dbReady ? "ok" : "db_error", database: dbReady ? "connected" : dbError || "not_checked" });
+  res.json({ status: "ok" });
 });
 
 app.use((err, _req, res, _next) => {
@@ -209,12 +202,9 @@ async function initializeDatabase() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS nahid_file_store_created_at_idx ON public.nahid_file_store (created_at DESC)`);
-    dbReady = true;
     console.log("Database initialized successfully");
   } catch (e) {
-    dbReady = false;
-    dbError = e.message;
-    console.error("Database init failed (server still starting):", e.message);
+    console.error("Database init failed:", e.message);
   }
 }
 
