@@ -4,21 +4,15 @@ const multer = require("multer");
 const rateLimit = require("express-rate-limit");
 const { Pool } = require("pg");
 const crypto = require("crypto");
+const path = require("path");
 const config = require("./config");
 
 const app = express();
-const PORT = Number(config.port || 8080);
+const PORT = Number(process.env.PORT || config.port || 8080);
 const MAX_FILE_SIZE = Number(config.maxFileSizeMb || 20) * 1024 * 1024;
 
-if (!config.adminPassword || config.adminPassword.length < 16 ||
-    config.adminPassword.includes("SET_A_NEW_")) {
-  console.error("Set a unique adminPassword of at least 16 characters in config.js.");
-  process.exit(1);
-}
-if (!config.databaseUrl || config.databaseUrl.includes("SET_NEW_DATABASE_PASSWORD_HERE")) {
-  console.error("Set databaseUrl in config.js.");
-  process.exit(1);
-}
+let dbReady = false;
+let dbError = null;
 
 const pool = new Pool({
   connectionString: config.databaseUrl,
@@ -30,6 +24,14 @@ const pool = new Pool({
 
 console.log("Config loaded: databaseUrl from env =", Boolean(config.databaseUrl && !config.databaseUrl.includes("SET_NEW_DATABASE")),
   "| adminPassword set =", Boolean(config.adminPassword && !config.adminPassword.includes("SET_A_NEW_")));
+
+if (!config.adminPassword || config.adminPassword.length < 16 ||
+    config.adminPassword.includes("SET_A_NEW_")) {
+  console.error("Set a unique adminPassword of at least 16 characters.");
+}
+if (!config.databaseUrl || config.databaseUrl.includes("SET_NEW_DATABASE_PASSWORD_HERE")) {
+  console.error("Set databaseUrl.");
+}
 
 app.set("trust proxy", 1);
 app.use(helmet({
@@ -84,20 +86,6 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE, files: 100 }
 });
 
-async function initializeDatabase() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.nahid_file_store (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      original_name text NOT NULL,
-      mime_type text NOT NULL DEFAULT 'application/octet-stream',
-      size_bytes bigint NOT NULL,
-      file_data bytea NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now()
-    )
-  `);
-  await pool.query(`CREATE INDEX IF NOT EXISTS nahid_file_store_created_at_idx ON public.nahid_file_store (created_at DESC)`);
-}
-
 app.get("/login", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.type("html").send(`<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>دخول الإدارة</title><style>*{box-sizing:border-box}body{margin:0;background:#101820;color:#eef4f7;font:16px system-ui;display:grid;min-height:100vh;place-items:center;padding:20px}.card{width:min(420px,100%);background:#192833;border:1px solid #304653;border-radius:18px;padding:28px}h1{font-size:23px}p{color:#b7c6ce;line-height:1.7}input,button{width:100%;padding:14px;border-radius:10px;font:inherit}input{background:#0f1a21;border:1px solid #405663;color:white;margin:12px 0}button{background:#19a68f;border:0;color:#061b18;font-weight:700}</style><main class="card"><h1>مركز الملفات الخاص</h1><p>هذه الصفحة محمية بكلمة مرور الإدارة.</p><form method="post" action="/login"><input type="password" name="password" placeholder="كلمة المرور" required autocomplete="current-password"><button>دخول</button></form></main></html>`);
@@ -118,16 +106,19 @@ app.post("/logout", auth, (req, res) => {
 });
 app.get("/", auth, (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.sendFile(require("path").join(__dirname, "public", "index.html"));
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
-app.use("/assets", auth, express.static(require("path").join(__dirname, "public", "assets"), { fallthrough: false }));
+app.use("/assets", auth, express.static(path.join(__dirname, "public", "assets"), { fallthrough: false }));
 
 app.get("/api/status", auth, apiLimiter, async (_req, res) => {
   try {
-    const r = await pool.query("SELECT NOW() AS server_time, current_database() AS database, current_user AS username, version() AS version");
+    const r = await pool.query("SELECT NOW() AS server_time, current_database() AS database, current_user AS username");
     const count = await pool.query("SELECT count(*)::int AS files, COALESCE(sum(size_bytes),0)::bigint AS bytes FROM public.nahid_file_store");
+    dbReady = true;
     res.json({ app: "online", database: { connected: true, ...r.rows[0] }, storage: count.rows[0] });
   } catch (e) {
+    dbReady = false;
+    dbError = e.message;
     res.status(503).json({ app: "online", database: { connected: false, error: e.message } });
   }
 });
@@ -135,6 +126,7 @@ app.get("/api/status", auth, apiLimiter, async (_req, res) => {
 app.post("/api/upload", auth, apiLimiter, upload.array("files", 100), async (req, res) => {
   const files = req.files || [];
   if (!files.length) return res.status(400).json({ error: "لم يتم اختيار ملفات." });
+  if (!dbReady) return res.status(503).json({ error: "قاعدة البيانات غير متصلة" });
   const client = await pool.connect();
   const added = [];
   try {
@@ -193,16 +185,42 @@ app.delete("/api/files/:id", auth, apiLimiter, async (req, res) => {
   } catch (e) { res.status(500).json({ error: "تعذر حذف الملف" }); }
 });
 
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.get("/health", (_req, res) => {
+  res.json({ status: dbReady ? "ok" : "db_error", database: dbReady ? "connected" : dbError || "not_checked" });
+});
+
 app.use((err, _req, res, _next) => {
   console.error(err);
   if (err instanceof multer.MulterError) return res.status(400).json({ error: err.message });
   res.status(500).json({ error: "Internal server error" });
 });
 
+async function initializeDatabase() {
+  try {
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public.nahid_file_store (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        original_name text NOT NULL,
+        mime_type text NOT NULL DEFAULT 'application/octet-stream',
+        size_bytes bigint NOT NULL,
+        file_data bytea NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS nahid_file_store_created_at_idx ON public.nahid_file_store (created_at DESC)`);
+    dbReady = true;
+    console.log("Database initialized successfully");
+  } catch (e) {
+    dbReady = false;
+    dbError = e.message;
+    console.error("Database init failed (server still starting):", e.message);
+  }
+}
+
 initializeDatabase()
   .then(() => app.listen(PORT, "0.0.0.0", () => console.log(`NAHID file host listening on ${PORT}`)))
   .catch(err => {
-    console.error("Initialization failed:", err.message);
+    console.error("Listen failed:", err.message);
     process.exit(1);
   });
