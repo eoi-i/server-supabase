@@ -1,12 +1,9 @@
 // Local configuration for this test project.
-// Do not commit this file to a public repository or share the ZIP with credentials.
-// Replace the values below with NEW credentials after rotating the exposed password.
+// Values are read from Fly.io secrets / environment variables first, then fall back to the defaults below.
+// Do not commit real credentials to this file.
 module.exports = {
-  adminPassword: "SET_A_NEW_UNIQUE_ADMIN_PASSWORD_HERE",
-  databaseUrl: "postgresql://postgres:SET_NEW_DATABASE_PASSWORD_HERE@db.cxhapudqfbzojsnandfc.supabase.co:5432/postgres?sslmode=require",
-  port: 8080,
-  maxFileSizeMb: 20,
-  supabaseUrl: "SET_YOUR_SUPABASE_PROJECT_URL_HERE",
-  supabaseServiceRoleKey: "SET_YOUR_SUPABASE_SERVICE_ROLE_KEY_HERE",
-  supabaseBucket: "files"
+  adminPassword: process.env.ADMIN_PASSWORD || process.env.supervisor_Password || "SET_A_NEW_UNIQUE_ADMIN_PASSWORD_HERE",
+  databaseUrl: process.env.DATABASE_URL || process.env.secret_database || "postgresql://postgres:SET_NEW_DATABASE_PASSWORD_HERE@db.cxhapudqfbzojsnandfc.supabase.co:5432/postgres?sslmode=require",
+  port: Number(process.env.PORT || 8080),
+  maxFileSizeMb: 20
 };

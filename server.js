@@ -4,7 +4,6 @@ const multer = require("multer");
 const rateLimit = require("express-rate-limit");
 const { Pool } = require("pg");
 const crypto = require("crypto");
-const { createClient } = require("@supabase/supabase-js");
 const config = require("./config");
 
 const app = express();
@@ -20,14 +19,6 @@ if (!config.databaseUrl || config.databaseUrl.includes("SET_NEW_DATABASE_PASSWOR
   console.error("Set databaseUrl in config.js.");
   process.exit(1);
 }
-if (!config.supabaseUrl || config.supabaseUrl.includes("SET_YOUR_SUPABASE_PROJECT_URL_HERE")) {
-  console.error("Set supabaseUrl in config.js.");
-  process.exit(1);
-}
-if (!config.supabaseServiceRoleKey || config.supabaseServiceRoleKey.includes("SET_YOUR_SUPABASE_SERVICE_ROLE_KEY_HERE")) {
-  console.error("Set supabaseServiceRoleKey in config.js.");
-  process.exit(1);
-}
 
 const pool = new Pool({
   connectionString: config.databaseUrl,
@@ -36,9 +27,6 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   max: 5
 });
-
-const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
-const BUCKET = config.supabaseBucket || "files";
 
 app.set("trust proxy", 1);
 app.use(helmet({
@@ -93,36 +81,18 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE, files: 100 }
 });
 
-async function ensureBucket() {
-  const { error } = await supabase.storage.createBucket(BUCKET, { public: true });
-  if (error && !/already exists|Already exists|bucket already exists/i.test(error.message)) {
-    throw error;
-  }
-}
-
 async function initializeDatabase() {
-  await ensureBucket();
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.nahid_file_store (
-      id uuid PRIMARY KEY,
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       original_name text NOT NULL,
       mime_type text NOT NULL DEFAULT 'application/octet-stream',
       size_bytes bigint NOT NULL,
-      storage_path text NOT NULL DEFAULT '',
-      url text NOT NULL DEFAULT '',
+      file_data bytea NOT NULL,
       created_at timestamptz NOT NULL DEFAULT now()
     )
   `);
-  await pool.query(`
-    ALTER TABLE public.nahid_file_store
-    ADD COLUMN IF NOT EXISTS storage_path text NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS url text NOT NULL DEFAULT ''
-  `);
-  await pool.query(`ALTER TABLE public.nahid_file_store ALTER COLUMN file_data DROP NOT NULL`).catch(() => {});
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS nahid_file_store_created_at_idx
-    ON public.nahid_file_store (created_at DESC)
-  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS nahid_file_store_created_at_idx ON public.nahid_file_store (created_at DESC)`);
 }
 
 app.get("/login", (_req, res) => {
@@ -169,29 +139,19 @@ app.post("/api/upload", auth, apiLimiter, upload.array("files", 100), async (req
     for (const f of files) {
       const id = crypto.randomUUID();
       const original = String(f.originalname || "file").replace(/\\/g, "/").split("/").pop().replace(/[^\p{L}\p{N}._ -]/gu, "_").slice(0, 240) || "file";
-      const storagePath = `uploads/${id}/${original}`;
-      const { error: upError } = await supabase.storage
-        .from(BUCKET)
-        .upload(storagePath, f.buffer, {
-          contentType: f.mimetype || "application/octet-stream",
-          upsert: false
-        });
-      if (upError) throw upError;
-      const { data: pubData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
-      const url = pubData.publicUrl;
       await client.query(
-        `INSERT INTO public.nahid_file_store (id, original_name, mime_type, size_bytes, storage_path, url)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id, original, f.mimetype || "application/octet-stream", f.size, storagePath, url]
+        `INSERT INTO public.nahid_file_store (id, original_name, mime_type, size_bytes, file_data)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [id, original, f.mimetype || "application/octet-stream", f.size, f.buffer]
       );
-      added.push({ id, name: original, size: f.size, storagePath, url, uploadedAt: new Date().toISOString() });
+      added.push({ id, name: original, size: f.size, uploadedAt: new Date().toISOString() });
     }
     await client.query("COMMIT");
     res.status(201).json({ uploaded: added.length, files: added });
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("Upload failed:", e.message);
-    res.status(500).json({ error: "فشل رفع الملف إلى Supabase Storage. تحقق من إعدادات Supabase وحجم الملف." });
+    res.status(500).json({ error: "فشل رفع الملف إلى قاعدة البيانات." });
   } finally {
     client.release();
   }
@@ -200,30 +160,32 @@ app.post("/api/upload", auth, apiLimiter, upload.array("files", 100), async (req
 app.get("/api/files", auth, apiLimiter, async (_req, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, original_name AS name, size_bytes AS size, storage_path, url, created_at AS "uploadedAt"
+      `SELECT id, original_name AS name, size_bytes AS size, created_at AS "uploadedAt"
        FROM public.nahid_file_store ORDER BY created_at DESC LIMIT 1000`
     );
-    res.json(r.rows.map(x => ({ ...x, url: x.url })));
+    const base = `${_req.protocol}://${_req.get("host")}`;
+    res.json(r.rows.map(x => ({ ...x, url: `${base}/files/${x.id}` })));
   } catch (e) { res.status(500).json({ error: "تعذر قراءة الملفات" }); }
 });
 
 app.get("/files/:id", auth, async (req, res) => {
   if (!/^[a-f0-9-]{36}$/i.test(req.params.id)) return res.status(404).send("File not found");
   try {
-    const r = await pool.query("SELECT url FROM public.nahid_file_store WHERE id=$1", [req.params.id]);
+    const r = await pool.query("SELECT file_data, mime_type, original_name FROM public.nahid_file_store WHERE id=$1", [req.params.id]);
     if (!r.rowCount) return res.status(404).send("File not found");
-    res.redirect(302, r.rows[0].url);
+    const { file_data, mime_type, original_name } = r.rows[0];
+    res.setHeader("Content-Type", mime_type);
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(original_name)}"`);
+    res.setHeader("Content-Length", file_data.length);
+    res.send(file_data);
   } catch (e) { res.status(500).send("تعذر فتح الملف"); }
 });
 
 app.delete("/api/files/:id", auth, apiLimiter, async (req, res) => {
   if (!/^[a-f0-9-]{36}$/i.test(req.params.id)) return res.status(404).json({ error: "File not found" });
   try {
-    const r = await pool.query("SELECT storage_path FROM public.nahid_file_store WHERE id=$1", [req.params.id]);
+    const r = await pool.query("DELETE FROM public.nahid_file_store WHERE id=$1 RETURNING id", [req.params.id]);
     if (!r.rowCount) return res.status(404).json({ error: "File not found" });
-    const { storage_path: path } = r.rows[0];
-    if (path) await supabase.storage.from(BUCKET).remove([path]);
-    await pool.query("DELETE FROM public.nahid_file_store WHERE id=$1", [req.params.id]);
     res.json({ deleted: true, id: req.params.id });
   } catch (e) { res.status(500).json({ error: "تعذر حذف الملف" }); }
 });
@@ -236,7 +198,7 @@ app.use((err, _req, res, _next) => {
 });
 
 initializeDatabase()
-  .then(() => app.listen(PORT, "127.0.0.1", () => console.log(`NAHID file host listening on ${PORT}`)))
+  .then(() => app.listen(PORT, "0.0.0.0", () => console.log(`NAHID file host listening on ${PORT}`)))
   .catch(err => {
     console.error("Initialization failed:", err.message);
     process.exit(1);
